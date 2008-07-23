@@ -79,8 +79,15 @@ class Ticket < ActiveResource::Base
     @ticket_list = []
     @useragent = 'Mozilla/5.0 (Macintosh; U; Intel Mac OS X; en-us) AppleWebKit/523.10.6 (KHTML, like Gecko) Version/3.0.4 Safari/523.10.6'
 
-    # domain of your trac install
+    # hostname and port for webserver serving Trac
     @domain = 'trac.domain.com'
+    @port = '80'
+
+    # The root of Trac in your webserver
+    @trac_root = ''
+
+    @http_address = 'http://' + @domain + ':' + @port
+    @base_url = @http_address + @trac_root
 
     # trac users e-mail - needed to pull full email address on ticket creator
     @username = 'tracuser@email.com'
@@ -88,7 +95,7 @@ class Ticket < ActiveResource::Base
     # trac users password
     @password = 'users_password'
 
-    # @domain + this is the url for logging into track
+    # @base_url + @login is the url for logging into track
     @login = '/login'
     
     # set to true if your trac is using basic http authentication (provide credentials below)
@@ -102,12 +109,12 @@ class Ticket < ActiveResource::Base
 
     # setup headers for grabbing cookie and tiket info
     @headers = {
-      'Referer' => 'http://'+ @domain,
+      'Referer' => @base_url,
       'User-Agent' => @useragent
     }
     
     # setup connection
-    @http = Net::HTTP.new(@domain,80)
+    @http = Net::HTTP.new(@domain,@port)
     
     #setup project_ids and associated trac components
     # :project_id should be the lighthouse id of the project 
@@ -179,7 +186,7 @@ class Ticket < ActiveResource::Base
     
     # build the base ticket
     ticket = { :title => (doc/"h2.summary").inner_html,
-               :trac_url => '"Original Trac Ticket":http://' + @domain + '/ticket/' + ticket_num,
+               :trac_url => '"Original Trac Ticket":' + @base_url + '/ticket/' + ticket_num,
                :reporter => (doc/"//td[@headers='h_reporter']").inner_html,
                :priority => (doc/"//td[@headers='h_priority']").inner_html,
                :component => (doc/"//td[@headers='h_component']").inner_html,
@@ -214,7 +221,7 @@ class Ticket < ActiveResource::Base
     
     # gather and cleanup the attachments
     (doc/"dl.attachments/dt/a").each do |a|
-      ticket[:attachments] << "http://merb.devjavu.com#{a.attributes['href']}"
+      ticket[:attachments] << + @http_address + "#{a.attributes['href']}"
     end
     ticket[:attachments] = unescapeHTML(ticket[:attachments].join("\n"))
     
@@ -267,18 +274,18 @@ class Ticket < ActiveResource::Base
 
   def steal_cookie
     # get request to gather tokens needed to hijack cookie
-    resp, data = @http.get2(@login, {'User-Agent' => @useragent})
-    cookie = resp.response['set-cookie']
-    data.match(/TOKEN\" value\=\"(\w+)\"/)
+    resp = @http.request_get(@trac_root + @login, {'User-Agent' => @useragent})
+    cookie = resp.response['Set-Cookie']
+    resp.body.match(/TOKEN\" value\=\"(\w+)\"/)
     url_params = "user=#{@username}&password=#{@password}&__FORM_TOKEN=#{$1}"
     @headers = {
       'Cookie' => cookie,
-      'Referer' => 'http://' + @domain + @login,
+      'Referer' => @base_url + @login,
       'Content-Type' => 'application/x-www-form-urlencoded'
     }
     # post to login and grab cookie for later
-    resp, data = @http.post2(@login, url_params, @headers)
-    cookie = resp.response['set-cookie']
+    resp = @http.request_post(@trac_root + @login, url_params, @headers)
+    cookie = resp.response['Set-Cookie']
 
     @headers = {
       'Cookie' => cookie
@@ -287,10 +294,10 @@ class Ticket < ActiveResource::Base
 
   def get_html_for_ticket(ticket)
     #change url if you go somewhere other than /ticket/1 to pull up ticket #1
-    ticket_url = "/ticket/#{ticket}"
+    ticket_url = @trac_root + "/ticket/#{ticket}"
     
     if @trac_basic_auth
-      resp = Net::HTTP.start(@domain) do |http|
+      resp = Net::HTTP.start(@domain,@port) do |http|
         req = Net::HTTP::Get.new(ticket_url)
         req.basic_auth @trac_http_user, @trac_http_pass
         resp = http.request(req)
@@ -335,11 +342,11 @@ class Ticket < ActiveResource::Base
   def populate_tickets
     # url should be the path to a trac report that shows you all tickets from
     # all components
-    url = "/report/3"
+    url = @trac_root + "/report/3"
     ticket_list = []
     
     if @trac_basic_auth
-      resp = Net::HTTP.start(@domain) do |http|
+      resp = Net::HTTP.start(@domain,@port) do |http|
         req = Net::HTTP::Get.new(url)
         req.basic_auth @trac_http_user, @trac_http_pass
         resp = http.request(req)
