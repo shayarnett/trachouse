@@ -345,7 +345,12 @@ class Ticket < ActiveResource::Base
   def populate_tickets
     # url should be the path to a trac report that shows you all tickets from
     # all components
-    url = @trac_path + "/report/3"
+    url = @trac_path +
+            '/query?order=id' +
+                '&status=new' +
+                '&status=assigned' +
+                '&status=reopened'
+
     ticket_list = []
 
     if @trac_basic_auth
@@ -359,11 +364,13 @@ class Ticket < ActiveResource::Base
       resp, html = @http.get2(url, {'User-Agent' => @useragent})
     end
     html = Hpricot(html)
-    (html/".ticket").each do |a|
-     a.inner_html =~ /\#(\d{1,3})/
-     ticket_list << $1
+    (html/'.id/a').each do |a|
+     a.inner_html =~ /^(\d{1,3})$/
+     # For some reason, the XPath expression also matches the table header, with
+     # class="id asc".  We work around that.
+     if $1; ticket_list << $1; end
     end
-   ticket_list.sort
+   ticket_list
   end
 
 end
