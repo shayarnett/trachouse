@@ -58,9 +58,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 require 'hpricot'
-require 'open-uri'
 require 'net/http'
-require 'activesupport'
 require 'activeresource'
 require 'lighthouse'
 
