@@ -308,7 +308,7 @@ class Ticket < ActiveResource::Base
       data = resp.body
     else
       # change url in get2() if you go somewhere other than /ticket/1 to pull up ticket #1
-      resp, data = @http.get2(ticket_url, @headers)
+      resp = @http.request_get(ticket_url, @headers)
     end
     Hpricot(unescapeHTML(data)) if resp.code == '200'
   end
@@ -359,11 +359,10 @@ class Ticket < ActiveResource::Base
         req.basic_auth @trac_username, @trac_password
         resp = http.request(req)
       end
-      html = resp.body
     else
-      resp, html = @http.get2(url, {'User-Agent' => @useragent})
+      resp = @http.request_get(url, {'User-Agent' => @useragent})
     end
-    html = Hpricot(html)
+    html = Hpricot(resp.body)
     (html/'.id/a').each do |a|
      a.inner_html =~ /^(\d{1,3})$/
      # For some reason, the XPath expression also matches the table header, with
