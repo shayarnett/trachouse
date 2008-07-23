@@ -1,41 +1,39 @@
-# Trachouse v1.0.0 fork (adds basic authentication support)
-# Author: Maxim Chernyak
-# Email: max@bitsonnet.com
-# 
-# This fork adds a simple trac basic authentication support.
-# 
-# USE:
-#   Follow instructions in the original README below
-#   There are 3 more commented sections you need to edit:
-#     - set @trac_basic_auth to true
-#     - set @trac_http_user to your basic auth username
-#     - set @trac_http_pass to your basic auth password
-# 
-# 
-# 
-# Original README
-# -------------------------------
-# 
-# Trachouse v1.0.0
-# Trac to Lighthouse ticket importer
-# Author: Shay Arnett 
-# Website: http://shayarnett.com/trachouse (soonish)
-# Email: shayarnett@gmail.com
-# 
-# You will need to obtain a copy of lighthouse.rb from the Lighthouse API
-# http://forum.activereload.net/forums/6/topics/44
-# 
-# Please read all commented sections, as most have something you will need to change directly below it
-# 
-# USE:
-# 
-#   @tickets = populate_tickets # grabs all tickets from trac
-#   import_tickets(@tickets) # import tickets to lighthouse
-#   # profit
-#   # you may want to inspect @tickets or only import a couple of tickets to verify format before processing all tickets
-# 
+#
+#   Trac to Lighthouse ticket importer
+#
+#   Original Author: Shay Arnett <shayarnett@gmail.com>
+#
+#   Contributions by :
+#       Maxim Chernyak <max@bitsonnet.com>
+#       João Abecasis <joao@abecasis.name>
+#
+#
+#   NOTES
+#   -----
+#
+#   You'll need to get lighthouse.rb from
+#   http://ar-code.svn.engineyard.com/lighthouse-api/lib
+#
+#   Enter Lighthouse and Trac configuration data in the ###marked### sections.
+#
+#   Usage:
+#
+#       require 'trachouse'
+#
+#       t = Ticket.new
+#
+#       # grabs all tickets from trac
+#       tickets = t.populate_tickets
+#       # import tickets to lighthouse
+#       t.import_tickets(tickets)
+#       # profit
+#
+#   You may want to inspect tickets and import a subset for testing, before
+#   bulk processing all tickets.
+
+
 # Copyright (c) 2008 Shay Arnett
-# 
+#
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
 # files (the "Software"), to deal in the Software without
@@ -44,10 +42,10 @@
 # copies of the Software, and to permit persons to whom the
 # Software is furnished to do so, subject to the following
 # conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
 # EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
 # OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
@@ -57,65 +55,72 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+
 require 'hpricot'
 require 'net/http'
 require 'activeresource'
 require 'lighthouse'
 
-
 class Ticket < ActiveResource::Base
   include Lighthouse
-  # Lighthouse Account Name - Not your username
+
+  ############
+  ### Lighthouse configuration
+  ###
+
+  # Lighthouse Account Name -- NOT your username!
   Lighthouse.account = 'foo_bar'
-  # Lighthouse api token 
+  # Lighthouse API token
   Lighthouse.token = 'xxxxxxxxx'
 
+  ###
+  ### END of Lighthouse configuration
+  ############
+
   def initialize
+
+    ############
+    ### Trac configuration
+    ###
+
+    # URL pointing to root of Trac installation. Don't include '/wiki/WikiStart'
+    # and such. Don't include trailing slash...
+    @trac_url = 'http://trac.example.com/myproject/trac'
+
+    # Credentials are required to access user data.
+    # Does Trac use basic http authentication?
+    @trac_basic_auth = true
+    @trac_username = 'tracuser@email.com'
+    @trac_password = 'password'
+
+    ###
+    ### END of Trac configuration
+    ############
 
     @tickets = []
     @ticket = {}
     @ticket_list = []
+
     @useragent = 'Mozilla/5.0 (Macintosh; U; Intel Mac OS X; en-us) AppleWebKit/523.10.6 (KHTML, like Gecko) Version/3.0.4 Safari/523.10.6'
 
-    # hostname and port for webserver serving Trac
-    @domain = 'trac.domain.com'
-    @port = '80'
+    trac_uri = URI.parse(@trac_url)
+    @trac_host = trac_uri.host
+    @trac_port = trac_uri.port
+    @trac_path = trac_uri.path
 
-    # The root of Trac in your webserver
-    @trac_root = ''
-
-    @http_address = 'http://' + @domain + ':' + @port
-    @base_url = @http_address + @trac_root
-
-    # trac users e-mail - needed to pull full email address on ticket creator
-    @username = 'tracuser@email.com'
-
-    # trac users password
-    @password = 'users_password'
-
-    # @base_url + @login is the url for logging into track
-    @login = '/login'
-    
-    # set to true if your trac is using basic http authentication (provide credentials below)
-    @trac_basic_auth = false
-    
-    # trac http username for trac's basic authentication
-    @trac_http_user = 'http_user'
-    
-    # trac http password for trac's basic authentication
-    @trac_http_pass = 'http_password'
+    @trac_address = "http://#{@trac_host}:#{@trac_port}/"
 
     # setup headers for grabbing cookie and tiket info
     @headers = {
-      'Referer' => @base_url,
+      'Referer' => @trac_url,
       'User-Agent' => @useragent
     }
-    
+
     # setup connection
-    @http = Net::HTTP.new(@domain,@port)
-    
+    @http = Net::HTTP.new(@trac_host, @trac_port)
+
     #setup project_ids and associated trac components
-    # :project_id should be the lighthouse id of the project 
+    # :project_id should be the lighthouse id of the project
     #  you want to import the tickets to
     #
     # :components should be an array of the trac components you wish
@@ -124,7 +129,7 @@ class Ticket < ActiveResource::Base
     # project_1 = { :project_id => 1234,
     #               :components => ['Core','Module 1', 'etc']}
     # project_2 = { etc }
-    
+
     merb_core = { :project_id => 7433,
                   :components => [ 'Merb',
                                    'Web Site',
@@ -146,7 +151,7 @@ class Ticket < ActiveResource::Base
                    }
     # add all your project hashes to @projects
     #
-    # this could have been combined with above, but tended to be less readable 
+    # this could have been combined with above, but tended to be less readable
     # after adding a couple projects
     @projects = [ merb_core, merb_more, merb_plugins ]
   end
@@ -181,10 +186,10 @@ class Ticket < ActiveResource::Base
     # this is all based on a pretty standard trac template
     # if you have done any customizing you will need to check your html
     # and change the necessary Hpricot searches to pull the correct data
-    
+
     # build the base ticket
     ticket = { :title => (doc/"h2.summary").inner_html,
-               :trac_url => '"Original Trac Ticket":' + @base_url + '/ticket/' + ticket_num,
+               :trac_url => '"Original Trac Ticket":' + @trac_url + '/ticket/' + ticket_num,
                :reporter => (doc/"//td[@headers='h_reporter']").inner_html,
                :priority => (doc/"//td[@headers='h_priority']").inner_html,
                :component => (doc/"//td[@headers='h_component']").inner_html,
@@ -194,13 +199,13 @@ class Ticket < ActiveResource::Base
                :comments => [],
                :attachments => []
              }
-             
+
     # clean up the description
     Hpricot(ticket[:description]).search("h3").remove
     ticket[:description].gsub!(/<\/?pre( class=\"wiki\")?>/,"@@@\n")
     ticket[:description].gsub!(/<\/?[^>]*>/, "")
     ticket[:description] = unescapeHTML(ticket[:description].gsub!(/\n\s*\n\s*\n/,"\n\n"))
-    
+
     # gather and clean up the ticket changes
     changes = []
     (doc/"div.change").each do |c|
@@ -216,13 +221,13 @@ class Ticket < ActiveResource::Base
     end
     ticket[:comments] = unescapeHTML(ticket[:comments].join("\n"))
     ticket[:comments].gsub!(/\((follow|in)[^\)]*\)/,'')
-    
+
     # gather and cleanup the attachments
     (doc/"dl.attachments/dt/a").each do |a|
-      ticket[:attachments] << + @http_address + "#{a.attributes['href']}"
+      ticket[:attachments] << + "#{@trac_address}#{a.attributes['href']}"
     end
     ticket[:attachments] = unescapeHTML(ticket[:attachments].join("\n"))
-    
+
     # put together the final body
     ticket[:body] = [ "Originally posted on Trac by #{ticket[:reporter]}", ticket[:trac_url], ticket[:description], "h3. Trac Attachments", ticket[:attachments], "h3. Trac Comments", ticket[:comments]].join("\n")
     ticket[:tags] = [ticket[:priority],ticket[:component]]
@@ -236,7 +241,7 @@ class Ticket < ActiveResource::Base
     if string == nil
       return ''
     end
-    
+
     string.gsub(/&(.*?);/n) do
       match = $1.dup
       case match
@@ -272,17 +277,17 @@ class Ticket < ActiveResource::Base
 
   def steal_cookie
     # get request to gather tokens needed to hijack cookie
-    resp = @http.request_get(@trac_root + @login, {'User-Agent' => @useragent})
+    resp = @http.request_get(@trac_path + '/login', {'User-Agent' => @useragent})
     cookie = resp.response['Set-Cookie']
     resp.body.match(/TOKEN\" value\=\"(\w+)\"/)
-    url_params = "user=#{@username}&password=#{@password}&__FORM_TOKEN=#{$1}"
+    url_params = "user=#{@trac_username}&password=#{@trac_password}&__FORM_TOKEN=#{$1}"
     @headers = {
       'Cookie' => cookie,
-      'Referer' => @base_url + @login,
+      'Referer' => @trac_url + '/login',
       'Content-Type' => 'application/x-www-form-urlencoded'
     }
     # post to login and grab cookie for later
-    resp = @http.request_post(@trac_root + @login, url_params, @headers)
+    resp = @http.request_post(@trac_path + '/login', url_params, @headers)
     cookie = resp.response['Set-Cookie']
 
     @headers = {
@@ -292,16 +297,16 @@ class Ticket < ActiveResource::Base
 
   def get_html_for_ticket(ticket)
     #change url if you go somewhere other than /ticket/1 to pull up ticket #1
-    ticket_url = @trac_root + "/ticket/#{ticket}"
-    
+    ticket_url = @trac_path + "/ticket/#{ticket}"
+
     if @trac_basic_auth
-      resp = Net::HTTP.start(@domain,@port) do |http|
+      resp = Net::HTTP.start(@trac_host, @trac_port) do |http|
         req = Net::HTTP::Get.new(ticket_url)
-        req.basic_auth @trac_http_user, @trac_http_pass
+        req.basic_auth @trac_username, @trac_password
         resp = http.request(req)
       end
       data = resp.body
-    else  
+    else
       # change url in get2() if you go somewhere other than /ticket/1 to pull up ticket #1
       resp, data = @http.get2(ticket_url, @headers)
     end
@@ -315,12 +320,12 @@ class Ticket < ActiveResource::Base
     ticket.body = trac_ticket[:body].to_s
     ticket.save
   end
-  
+
   def import_tickets(tickets)
     if not @trac_basic_auth
       steal_cookie
     end
-    
+
     new_tickets = []
     tickets.each do |ticket|
       # grab the page for this ticket
@@ -330,7 +335,7 @@ class Ticket < ActiveResource::Base
       # add to @tickets[]
       new_tickets << new_ticket
     end
-    
+
     # create and save to lighthouse
     new_tickets.each do |ticket|
       create_ticket(ticket)
@@ -340,13 +345,13 @@ class Ticket < ActiveResource::Base
   def populate_tickets
     # url should be the path to a trac report that shows you all tickets from
     # all components
-    url = @trac_root + "/report/3"
+    url = @trac_path + "/report/3"
     ticket_list = []
-    
+
     if @trac_basic_auth
-      resp = Net::HTTP.start(@domain,@port) do |http|
+      resp = Net::HTTP.start(@trac_host, @trac_port) do |http|
         req = Net::HTTP::Get.new(url)
-        req.basic_auth @trac_http_user, @trac_http_pass
+        req.basic_auth @trac_username, @trac_password
         resp = http.request(req)
       end
       html = resp.body

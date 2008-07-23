@@ -1,58 +1,32 @@
-Trachouse v1.0.0 fork (adds basic authentication support)
-Author: Maxim Chernyak
-Email: max@bitsonnet.com
-
-This fork adds a simple trac basic authentication support.
-
-USE:
-	Follow instructions in the original README below
-	There are 3 more commented sections you need to edit:
-		- set @trac_basic_auth to true
-		- set @trac_http_user to your basic auth username
-		- set @trac_http_pass to your basic auth password
-
-
-
-Original README
--------------------------------
-
-Trachouse v1.0.0
 Trac to Lighthouse ticket importer
-Author: Shay Arnett 
-Website: http://shayarnett.com/trachouse (soonish)
-Email: shayarnett@gmail.com
 
-You will need to obtain a copy of lighthouse.rb from the Lighthouse API
-http://forum.activereload.net/forums/6/topics/44
+Original Author: Shay Arnett <shayarnett@gmail.com>
 
-Please read all commented sections, as most have something you will need to change directly below it
+Contributions by :
+    Maxim Chernyak <max@bitsonnet.com>
+    João Abecasis <joao@abecasis.name>
 
-USE:
 
-  @tickets = populate_tickets # grabs all tickets from trac
-  import_tickets(@tickets) # import tickets to lighthouse
-  # profit
-  # you may want to inspect @tickets or only import a couple of tickets to verify format before processing all tickets
+NOTES
+-----
 
-Copyright (c) 2008 Shay Arnett
+You'll need to get lighthouse.rb from
+http://ar-code.svn.engineyard.com/lighthouse-api/lib
 
-Permission is hereby granted, free of charge, to any person
-obtaining a copy of this software and associated documentation
-files (the "Software"), to deal in the Software without
-restriction, including without limitation the rights to use,
-copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the
-Software is furnished to do so, subject to the following
-conditions:
+Enter Lighthouse and Trac configuration data in the ###marked### sections.
 
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
+Usage:
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-OTHER DEALINGS IN THE SOFTWARE.
+    require 'trachouse'
+
+    t = Ticket.new
+
+    # grabs all tickets from trac
+    tickets = t.populate_tickets
+    # import tickets to lighthouse
+    t.import_tickets(tickets)
+    # profit
+
+You may want to inspect tickets and import a subset for testing, before
+bulk processing all tickets.
+
