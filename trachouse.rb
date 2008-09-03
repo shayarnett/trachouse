@@ -63,7 +63,7 @@ require 'lighthouse'
 
 class Ticket < ActiveResource::Base
   include Lighthouse
-
+  
   ############
   ### Lighthouse configuration
   ###
@@ -72,11 +72,31 @@ class Ticket < ActiveResource::Base
   Lighthouse.account = 'foo_bar'
   # Lighthouse API token
   Lighthouse.token = 'xxxxxxxxx'
+  Config = {}
+  
+  #setup project_ids and associated trac components
+  # :project_id should be the lighthouse id of the project
+  #  you want to import the tickets to
+  #
+  # :components should be an array of the trac components you wish
+  #  to import into this project
+  #
+  # project_1 = { :project_id => 1234,
+  #               :components => ['Core','Module 1', 'etc']}
+  # project_2 = { etc }
+  #
+  # Config[:projects] = [project_1, project_2]
 
+  Config[:projects] = []
+  
+  # setup milestones (milestone_id from lighthouse)
+  # 
+  # Config[:milestones]  = {'name_of_trac_milestone' => milestone_id, etc }
+  Config[:milestones] = {}
+  
   ###
   ### END of Lighthouse configuration
   ############
-
   def initialize
 
     ############
@@ -96,6 +116,10 @@ class Ticket < ActiveResource::Base
     ###
     ### END of Trac configuration
     ############
+    
+    raise Exception.new("Projects not defined, set this first") if Config[:projects] == []
+    raise Exception.new("Lighthouse account not set, set this first") if Lighthouse.account == 'foo_bar'
+    raise Exception.new("Trac account not set, set this first") if @trac_uri == 'http://trac.example.com/myproject/trac'
 
     @tickets = []
     @ticket = {}
@@ -118,42 +142,6 @@ class Ticket < ActiveResource::Base
 
     # setup connection
     @http = Net::HTTP.new(@trac_host, @trac_port)
-
-    #setup project_ids and associated trac components
-    # :project_id should be the lighthouse id of the project
-    #  you want to import the tickets to
-    #
-    # :components should be an array of the trac components you wish
-    #  to import into this project
-    #
-    # project_1 = { :project_id => 1234,
-    #               :components => ['Core','Module 1', 'etc']}
-    # project_2 = { etc }
-
-    merb_core = { :project_id => 7433,
-                  :components => [ 'Merb',
-                                   'Web Site',
-                                   'Web site',
-                                   'Documentation',
-                                   'Routing',
-                                   'Views']
-                }
-
-    merb_more = { :project_id => 7435,
-                     :components => [ 'Generators',
-                                      'Rspec Harness']
-                   }
-
-    merb_plugins = { :project_id => 7588,
-                     :components => [ 'Plugin: DataMapper',
-                                      'Plugin: ActiveRecord',
-                                      'Plugins']
-                   }
-    # add all your project hashes to @projects
-    #
-    # this could have been combined with above, but tended to be less readable
-    # after adding a couple projects
-    @projects = [ merb_core, merb_more, merb_plugins ]
   end
 
   def tag_prep(tags)
@@ -172,10 +160,20 @@ class Ticket < ActiveResource::Base
       tag.uniq!
     end
   end
+  
+  def get_state_and_tags(status)
+    # new, open, resolved, hold, invalid
+    trans = {'assigned' => 'open', 'closed' => 'resolved'}
+    if status =~ /\A\((\w+)\s+(.*)\)\Z/
+      state = trans[$1] ? trans[$1] : $1
+      tags = $2.split.map { |t| t[-1..-1] == ':' ? t[0..-2] : t }.reject {|t| t== 'fixed' || t=='defect'}
+    end
+    return [state, tags]
+  end
 
   def get_project(ticket)
     project_id = nil
-    @projects.each do |project|
+    Config[:projects].each do |project|
       project_id = project[:project_id] if project[:components].include? ticket[:component]
       break unless project_id.nil?
     end
@@ -224,7 +222,7 @@ class Ticket < ActiveResource::Base
 
     # gather and cleanup the attachments
     (doc/"dl.attachments/dt/a").each do |a|
-      ticket[:attachments] << + "#{@trac_address}#{a.attributes['href']}"
+      ticket[:attachments] << "#{@trac_address}#{a.attributes['href']}"
     end
     ticket[:attachments] = unescapeHTML(ticket[:attachments].join("\n"))
 
@@ -290,9 +288,9 @@ class Ticket < ActiveResource::Base
     resp = @http.request_post(@trac_path + '/login', url_params, @headers)
     cookie = resp.response['Set-Cookie']
 
-    @headers = {
-      'Cookie' => cookie
-    }
+    @headers = {}
+    
+    @headers['Cookie'] = cookie if cookie
   end
 
   def get_html_for_ticket(ticket)
@@ -315,8 +313,11 @@ class Ticket < ActiveResource::Base
   def create_ticket(trac_ticket)
     ticket = Lighthouse::Ticket.new(:project_id => trac_ticket[:project_id])
     ticket.title = trac_ticket[:title].to_s
-    ticket.tags = tag_prep(trac_ticket[:tags])
+    state, status_tags = get_state_and_tags(trac_ticket[:status])
+    ticket.tags = tag_prep(trac_ticket[:tags] + status_tags)
     ticket.body = trac_ticket[:body].to_s
+    ticket.state = state
+    ticket.milestone_id = Config[:milestones][trac_ticket[:milestone]]
     ticket.save
   end
 
@@ -328,27 +329,22 @@ class Ticket < ActiveResource::Base
     new_tickets = []
     tickets.each do |ticket|
       # grab the page for this ticket
+      puts "Getting data for ticket #{@trac_path + "/ticket/#{ticket}"}"
       ticket_html = get_html_for_ticket(ticket)
       # pull data for ticket
       new_ticket = build_ticket(ticket_html,ticket)
-      # add to @tickets[]
-      new_tickets << new_ticket
+      # push into Lighthouse
+      puts "Sending data to Lighthouse (#{new_ticket[:trac_id]} #{new_ticket[:title]})"
+      create_ticket(new_ticket)
     end
-
-    # create and save to lighthouse
-    new_tickets.each do |ticket|
-      create_ticket(ticket)
-    end
+    
   end
 
   def populate_tickets
     # url should be the path to a trac report that shows you all tickets from
     # all components
-    url = @trac_path +
-            '/query?order=id' +
-                '&status=new' +
-                '&status=assigned' +
-                '&status=reopened'
+    url = @trac_path + '/query?order=id'
+    
 
     ticket_list = []
 
