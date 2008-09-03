@@ -119,7 +119,7 @@ class Ticket < ActiveResource::Base
     
     raise Exception.new("Projects not defined, set this first") if Config[:projects] == []
     raise Exception.new("Lighthouse account not set, set this first") if Lighthouse.account == 'foo_bar'
-    raise Exception.new("Trac account not set, set this first") if @trac_uri == 'http://trac.example.com/myproject/trac'
+    raise Exception.new("Trac account not set, set this first") if @trac_url == 'http://trac.example.com/myproject/trac'
 
     @tickets = []
     @ticket = {}
