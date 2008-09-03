@@ -6,6 +6,7 @@
 #   Contributions by :
 #       Maxim Chernyak <max@bitsonnet.com>
 #       João Abecasis <joao@abecasis.name>
+#       Gaspard Buma <http://github.com/gaspard>
 #
 #
 #   NOTES
