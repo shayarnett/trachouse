@@ -305,12 +305,11 @@ class Ticket < ActiveResource::Base
         req.basic_auth @trac_username, @trac_password
         resp = http.request(req)
       end
-      data = resp.body
     else
       # change url in get2() if you go somewhere other than /ticket/1 to pull up ticket #1
       resp = @http.request_get(ticket_url, @headers)
     end
-    Hpricot(unescapeHTML(data)) if resp.code == '200'
+    Hpricot(unescapeHTML(resp.body)) if resp.code == '200'
   end
 
   def create_ticket(trac_ticket)
