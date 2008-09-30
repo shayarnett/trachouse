@@ -6,7 +6,7 @@
 #   Contributions by :
 #       Maxim Chernyak <max@bitsonnet.com>
 #       João Abecasis <joao@abecasis.name>
-#       Gaspard Buma <http://github.com/gaspard>
+#       Gaspard Bucher <http://github.com/gaspard>
 #
 #
 #   NOTES
@@ -80,7 +80,8 @@ class Ticket < ActiveResource::Base
   #  you want to import the tickets to
   #
   # :components should be an array of the trac components you wish
-  #  to import into this project
+  #  to import into this project. Use a component list like [""] if your
+  #  trac installation does not use components.
   #
   # project_1 = { :project_id => 1234,
   #               :components => ['Core','Module 1', 'etc']}
